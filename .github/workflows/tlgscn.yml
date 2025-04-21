@@ -1,0 +1,73 @@
+name: Extract Telegram Scanner
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  extract-project:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Check if archive exists
+        run: |
+          if [ ! -f "TelegramScanner.zip" ]; then
+            echo "Ошибка: Архив TelegramScanner.zip не найден в корне репозитория"
+            exit 1
+          fi
+          echo "Архив TelegramScanner.zip найден"
+      
+      - name: Extract archive
+        run: |
+          # Создаем временную директорию для распаковки
+          mkdir -p temp_extract
+          
+          # Распаковываем архив во временную директорию
+          unzip -q TelegramScanner.zip -d temp_extract || { echo "Ошибка при распаковке архива"; exit 1; }
+          
+          # Находим директорию, содержащую package.json (проект)
+          PROJECT_DIR=$(find temp_extract -type f -name "package.json" -exec dirname {} \; | head -n 1)
+          
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "Ошибка: Не найден файл package.json в распакованном архиве"
+            exit 1
+          fi
+          
+          echo "Найден проект в директории: $PROJECT_DIR"
+          
+          # Копируем содержимое найденной директории в корень репозитория
+          cp -r "$PROJECT_DIR"/* .
+          
+          # Удаляем временную директорию
+          rm -rf temp_extract
+          
+          echo "Проект успешно распакован в корень репозитория"
+      
+      - name: Verify extraction
+        run: |
+          if [ ! -f "package.json" ]; then
+            echo "Ошибка: package.json не найден в корне репозитория после распаковки"
+            exit 1
+          fi
+          
+          echo "Проверка успешна: package.json найден в корне репозитория"
+          ls -la
+      
+      - name: Remove archive
+        run: |
+          rm TelegramScanner.zip
+          echo "Архив TelegramScanner.zip удален"
+      
+      - name: Commit changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "Extract project from TelegramScanner.zip and remove archive" || echo "No changes to commit"
+          git push
